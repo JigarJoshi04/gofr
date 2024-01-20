@@ -31,6 +31,7 @@ jobs:
             env:
               MYSQL_ROOT_PASSWORD: "password"
               MYSQL_DATABASE: "test"
+              DB_NAME: "test"
         steps:
           - name: Checkout code into go module directory
             uses: actions/checkout@v4
