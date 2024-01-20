@@ -70,8 +70,8 @@ func NewContainer(conf config.Config) *Container {
 		c.DB, err = sql.NewMYSQL(&conf, c.Logger)
 
 		if err != nil {
-			c.Errorf("could not connect with '%s' user to database '%s:%s'  error: %v",
-				conf.User, conf.HostName, conf.Port, err)
+			c.Errorf("could not connect with '%s' user to database(%s) '%s:%s'  error: %v",
+				conf.User, conf.Database, conf.HostName, conf.Port, err)
 		} else {
 			c.Logf("connected to '%s' database at %s:%s", conf.Database, conf.HostName, conf.Port)
 		}
