@@ -1,14 +1,15 @@
-package container
+package datasource
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/go-redis/redis/extra/redisotel"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/extra/redisotel/v9"
+
+	"github.com/redis/go-redis/v9"
 )
 
-type redisConfig struct {
+type RedisConfig struct {
 	HostName string
 	Port     int
 	Options  *redis.Options
@@ -16,7 +17,7 @@ type redisConfig struct {
 
 // newRedisClient return a redis client if connection is successful based on Config.
 // In case of error, it returns an error as second parameter.
-func newRedisClient(config redisConfig) (*redis.Client, error) {
+func NewRedisClient(config RedisConfig) (*redis.Client, error) {
 	if config.Options == nil {
 		config.Options = new(redis.Options)
 	}
@@ -30,7 +31,14 @@ func newRedisClient(config redisConfig) (*redis.Client, error) {
 		return nil, err
 	}
 
-	rc.AddHook(redisotel.TracingHook{})
+	if err := redisotel.InstrumentTracing(rc); err != nil {
+		panic(err)
+	}
+
+	// Enable metrics instrumentation.
+	// if err := redisotel.InstrumentMetrics(rc); err != nil {
+	//	panic(err)
+	// }
 
 	return rc, nil
 }
@@ -39,3 +47,5 @@ func newRedisClient(config redisConfig) (*redis.Client, error) {
 // type Redis interface {
 //	Get(string) (string, error)
 // }
+
+type RedisHook struct{}

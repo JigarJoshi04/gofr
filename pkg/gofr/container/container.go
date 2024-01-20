@@ -4,10 +4,12 @@ import (
 	"strconv"
 
 	"gofr.dev/pkg/gofr/config"
+	"gofr.dev/pkg/gofr/datasource"
+	"gofr.dev/pkg/gofr/datasource/sql"
 	"gofr.dev/pkg/gofr/logging"
 
-	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql" // This is required to be blank import
+	"github.com/redis/go-redis/v9"
 )
 
 // TODO - This can be a collection of interfaces instead of struct
@@ -17,24 +19,32 @@ import (
 type Container struct {
 	logging.Logger
 	Redis *redis.Client
-	DB    *DB
+	DB    *sql.DB
 }
 
-func NewContainer(cfg config.Config) *Container {
+func (c *Container) Health() interface{} {
+	datasources := make(map[string]interface{})
+
+	datasources["sql"] = c.DB.HealthCheck()
+
+	return datasources
+}
+
+func NewContainer(conf config.Config) *Container {
 	c := &Container{
-		Logger: logging.NewLogger(logging.GetLevelFromString(cfg.Get("LOG_LEVEL"))),
+		Logger: logging.NewLogger(logging.GetLevelFromString(conf.Get("LOG_LEVEL"))),
 	}
 
 	c.Debug("Container is being created")
 
 	// Connect Redis if REDIS_HOST is Set.
-	if host := cfg.Get("REDIS_HOST"); host != "" {
-		port, err := strconv.Atoi(cfg.Get("REDIS_PORT"))
+	if host := conf.Get("REDIS_HOST"); host != "" {
+		port, err := strconv.Atoi(conf.Get("REDIS_PORT"))
 		if err != nil {
 			port = defaultRedisPort
 		}
 
-		c.Redis, err = newRedisClient(redisConfig{
+		c.Redis, err = datasource.NewRedisClient(datasource.RedisConfig{
 			HostName: host,
 			Port:     port,
 		})
@@ -46,16 +56,18 @@ func NewContainer(cfg config.Config) *Container {
 		}
 	}
 
-	if host := cfg.Get("DB_HOST"); host != "" {
-		conf := dbConfig{
+	if host := conf.Get("DB_HOST"); host != "" {
+		conf := sql.DBConfig{
 			HostName: host,
-			User:     cfg.Get("DB_USER"),
-			Password: cfg.Get("DB_PASSWORD"),
-			Port:     cfg.GetOrDefault("DB_PORT", strconv.Itoa(defaultDBPort)),
-			Database: cfg.Get("DB_NAME"),
+			User:     conf.Get("DB_USER"),
+			Password: conf.Get("DB_PASSWORD"),
+			Port:     conf.GetOrDefault("DB_PORT", strconv.Itoa(defaultDBPort)),
+			Database: conf.Get("DB_NAME"),
 		}
-		db, err := newMYSQL(&conf)
-		c.DB = &DB{db}
+
+		var err error
+
+		c.DB, err = sql.NewMYSQL(&conf, c.Logger)
 
 		if err != nil {
 			c.Errorf("could not connect with '%s' user to database '%s:%s'  error: %v",
