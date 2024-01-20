@@ -20,6 +20,9 @@ jobs:
             ports:
               - "2002:6379"
             options: "--entrypoint redis-server"
+            env:
+                REDIS_PORT: "2002"
+                REDIS_HOST: "localhost"
     
           mysql:
             image: mysql:8.2.0
@@ -47,7 +50,7 @@ jobs:
           - name: Test
             run: |
               export GOFR_ENV=test
-              go test gofr.dev/pkg/... -v -short -coverprofile profile.cov -coverpkg=gofr.dev/pkg/...
+              go test gofr.dev/pkg/... -v 3 -coverprofile profile.cov -coverpkg=gofr.dev/pkg/...
               go tool cover -func profile.cov
     
           - name: Upload Test Coverage
