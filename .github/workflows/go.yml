@@ -11,7 +11,7 @@ on:
       - development
 
 jobs:
-  Unit-Testing:
+  Example-Unit-Testing:
     name: Example Unit Testing🛠
     runs-on: ubuntu-latest
     services:
@@ -48,29 +48,65 @@ jobs:
       - name: Test
         run: |
           export GOFR_ENV=test
-          go test gofr.dev/examples/... -v -short -coverprofile example_profile.cov -coverpkg=gofr.dev/examples/...
-          go tool cover -func example_profile.cov
+          go test gofr.dev/examples/... -v -short -coverprofile profile.cov -coverpkg=gofr.dev/examples/...
+          go tool cover -func profile.cov
 
-          go test gofr.dev/pkg/... -v -short -coverprofile pkg_profile.cov -coverpkg=gofr.dev/pkg/...
-          go tool cover -func pkg_profile.cov
-
-      - name: Upload Example Test Coverage
+      - name: Upload Test Coverage
         uses: actions/upload-artifact@v3
         with:
           name: Example-Test-Report
-          path: example_profile.cov
-      
-      - name: Upload PKG Test Coverage
+          path: profile.cov
+
+  PKG-Unit-Testing:
+    name: PKG Unit Testing🛠
+    runs-on: ubuntu-latest
+    needs: [Example-Unit-Testing]
+    services:
+      redis:
+        image: redis:7.0.5
+        ports:
+          - "2002:6379"
+        options: "--entrypoint redis-server"
+
+      mysql:
+        image: mysql:8.2.0
+        ports:
+          - "2001:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: "password"
+          MYSQL_DATABASE: "test"
+    steps:
+      - name: Checkout code into go module directory
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up  Go 1.21
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+        id: Go
+
+      - name: Get dependencies
+        run: |
+          go mod download
+
+      - name: Test
+        run: |
+          export GOFR_ENV=test
+          go test gofr.dev/pkg/... -v -short -coverprofile profile.cov -coverpkg=gofr.dev/pkg/...
+          go tool cover -func profile.cov
+
+      - name: Upload Test Coverage
         uses: actions/upload-artifact@v3
         with:
-          name: Example-Test-Report
-          path: pkg_profile.cov
-
+          name: PKG-Coverage-Report
+          path: profile.cov
 
   parse_coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: [Unit-Testing]
+    needs: [Example-Unit-Testing,PKG-Unit-Testing]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
@@ -83,8 +119,8 @@ jobs:
       - name: Merge Coverage Files
         working-directory: artifacts
         run: |
-          awk '!/^mode: / && FNR==1{print "mode: set"} {print}' ./Example-Test-Report/example_profile.cov > merged_profile.cov
-          tail -n +2 ./PKG-Coverage-Report/pkg_profile.cov >> merged_profile.cov
+          awk '!/^mode: / && FNR==1{print "mode: set"} {print}' ./Example-Test-Report/profile.cov > merged_profile.cov
+          tail -n +2 ./PKG-Coverage-Report/profile.cov >> merged_profile.cov
 
       - name: Parse code-coverage value
         working-directory: artifacts
@@ -102,7 +138,7 @@ jobs:
   upload_coverage:
     name: Upload Coverage📊
     runs-on: ubuntu-latest
-    needs: [Unit-Testing]
+    needs: [Example-Unit-Testing,PKG-Unit-Testing]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/development' }}
     steps:
       - name: Check out code into the Go module directory
